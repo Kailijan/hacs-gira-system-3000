@@ -1,0 +1,11 @@
+{
+  "domain": "gira_system_3000",
+  "name": "Gira System 3000",
+  "codeowners": ["@Kailijan"],
+  "config_flow": true,
+  "documentation": "https://github.com/Kailijan/hacs-gira-system-3000",
+  "requirements": [],
+  "version": "0.1.0",
+  "issue_tracker": "https://github.com/Kailijan/hacs-gira-system-3000/issues",
+  "homeassistant": "2026.2.2"
+}

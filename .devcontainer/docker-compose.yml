@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:latest
+    container_name: homeassistant-dev
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - /home/kaifr/hacs-gira-system-3000:/workspace
+      - /home/kaifr/hacs-gira-system-3000/custom_components/gira_system_3000:/config/custom_components/gira_system_3000
+      - ha-config:/config
+    environment:
+      - TZ=UTC
+    ports:
+      - "8123:8123"
+    networks:
+      - homeassistant
+
+networks:
+  homeassistant:
+    driver: bridge
+
+volumes:
+  ha-config:
