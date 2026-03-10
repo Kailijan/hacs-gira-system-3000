@@ -1,11 +1,8 @@
-from datetime import timedelta
 import logging
+from collections.abc import Callable
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-)
 
 from custom_components.gira_system_3000.api import GiraBleApi
 
@@ -24,10 +21,30 @@ class GiraBleCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="Gira BLE Coordinator",
-            update_interval=timedelta(seconds=60),  # Wir aktualisieren nur bei Benachrichtigungen
+            update_interval=None,  # Push-only updates via BLE notifications
         )
         self._hass = hass
         self._api = api
+        self.data = {}
+        self._callbacks: list[Callable[[], None]] = []
+        # Register the cover position notification handler with the API.
+        self._api.set_cover_position_callback(self.cover_position_notification_handler)
+
+    def register_callback(self, callback: Callable[[], None]) -> None:
+        """Register a callback to be invoked when new data arrives."""
+        self._callbacks.append(callback)
+
+    def remove_callback(self, callback: Callable[[], None]) -> None:
+        """Remove a previously registered callback."""
+        try:
+            self._callbacks.remove(callback)
+        except ValueError:
+            _LOGGER.debug("Attempted to remove an unregistered callback: %s", callback)
+
+    def notify_listeners(self) -> None:
+        """Notify all registered callbacks about updated data."""
+        for callback in self._callbacks:
+            callback()
 
     def open_cover(self):
         self._api.send_command_up()
@@ -40,6 +57,25 @@ class GiraBleCoordinator(DataUpdateCoordinator):
 
     def set_cover_position(self, position: int):
         self._api.send_command(position)
+
+    def cover_position_notification_handler(self, handle, data: bytearray) -> None:
+        """Handle incoming cover position notifications from the BLE device.
+        
+        The last byte of the payload encodes the position:
+          0x00 = fully open, 0xFF = fully closed.
+        This is converted to the Home Assistant convention where
+          0 = fully closed and 100 = fully open.
+        """
+        if not data:
+            _LOGGER.warning("Received empty cover position notification")
+            return
+        _LOGGER.debug("Received cover position notification: %s", data.hex())
+        raw_value = data[-1]
+        # Convert BLE range (0=open, 255=closed) to HA range (0=closed, 100=open).
+        # Integer arithmetic avoids floating-point rounding surprises.
+        ha_position = (255 - raw_value) * 100 // 255
+        self.data["cover_position"] = ha_position
+        self.notify_listeners()
 
     def notification_handler(self, handle, data):
         """Zentrale Verarbeitung der eingehenden Bluetooth-Bytes."""

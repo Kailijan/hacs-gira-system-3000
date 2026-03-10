@@ -8,7 +8,7 @@ from bleak_retry_connector import BleakClientWithServiceCache, establish_connect
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
-from custom_components.gira_system_3000.const import CHR_UUID, SVC_UUID
+from custom_components.gira_system_3000.const import CHR_COVER_POSITION_UUID, CHR_UUID, SVC_UUID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class GiraBleApi:
         self._connection_lock = asyncio.Lock()  # Prevent concurrent connection attempts
         self._commandQueue: asyncio.Queue[bytes] = asyncio.Queue()
         self._client: BleakClient | None = None
+        self._cover_position_callback = None
         self._commandTask = asyncio.create_task(self._command_executor())
 
     def __del__(self):
@@ -77,6 +78,7 @@ class GiraBleApi:
                     ble_device_callback=_get_ble_device,
                 )
                 _LOGGER.debug("Successfully connected to device %s", self._address)
+                await self._setup_notifications(self._client)
                 return self._client
             except Exception as e:
                 _LOGGER.error("Failed to establish connection to %s: %s", self._address, e, exc_info=True)
@@ -164,8 +166,31 @@ class GiraBleApi:
         self._send_command(_command_value(gira_payload))
 
 
+    def set_cover_position_callback(self, callback) -> None:
+        """Register a callback to be invoked when a cover position notification arrives."""
+        self._cover_position_callback = callback
+
+    async def _setup_notifications(self, client: BleakClient) -> None:
+        """Subscribe to cover position notifications and read the current position."""
+        try:
+            await client.start_notify(CHR_COVER_POSITION_UUID, self._on_cover_position)
+            _LOGGER.debug("Subscribed to cover position notifications on %s", self._address)
+            # Read the current position so the entity is up-to-date right after connecting.
+            data = await client.read_gatt_char(CHR_COVER_POSITION_UUID)
+            self._on_cover_position(None, data)
+        except Exception as e:
+            _LOGGER.warning("Failed to set up cover position notifications: %s", e)
+
+    def _on_cover_position(self, handle: int | None, data: bytearray) -> None:
+        """Forward incoming cover position data to the registered callback.
+
+        ``handle`` is the GATT characteristic handle when called from a BLE
+        notification, or ``None`` when called after an explicit READ on connect.
+        """
+        if self._cover_position_callback is not None:
+            self._cover_position_callback(handle, data)
+
     async def notification_handler(self, handle, data):
         """Handle incoming Bluetooth notifications."""
         # Hier könnte die Logik zum Verarbeiten von eingehenden Bluetooth-Daten implementiert werden.
         pass
-
