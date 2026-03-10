@@ -2,6 +2,24 @@
 
 This dev container provides a complete Home Assistant development environment with your `gira_system_3000` custom component pre-mounted and ready to test.
 
+> **⚠️ Known Limitation: BLE connectivity on Windows / WSL2**
+>
+> Connecting to a physical Gira Switch **reliably requires a native Linux Bluetooth stack**. When running the devcontainer on Windows with WSL2, the Bluetooth adapter must be forwarded via USB/IP (`usbipd`), which adds variable USB-over-IP latency that frequently exceeds the BLE connection timing requirements. This causes repeated `TimeoutError` failures in the log, even when the device is visible in the scan results:
+>
+> ```
+> ERROR Failed to establish connection to <address>: Failed to connect after 9 attempt(s): TimeoutError
+> ```
+>
+> **Recommended test environment for actual BLE device control:**
+> Use a **Raspberry Pi running Home Assistant OS** (or Home Assistant Supervised on Raspberry Pi OS). The on-board or USB Bluetooth adapter communicates with BlueZ natively, without the USB-IP indirection, and connects reliably.
+>
+> **The devcontainer is still useful for:**
+> - Editing and linting the integration code
+> - Testing the config flow UI (device discovery and setup)
+> - Checking integration loading and HACS compatibility
+>
+> See the main [README.md](../README.md) for Raspberry Pi deployment instructions.
+
 ## Quick Start
 
 ### Prerequisites
@@ -132,7 +150,13 @@ Create a Windows Task Scheduler task to auto-attach the USB device:
 - Ensure the device is attached: `usbipd list --attached`
 - Reattach if needed: `usbipd detach --busid=<BUS_ID>` then reattach
 
-**Cannot connect to Bluetooth device:**
+**Cannot connect to Bluetooth device / repeated TimeoutError:**
+
+> **This is a known limitation of WSL2 + USB-IP Bluetooth passthrough.** Variable latency introduced by USB-over-IP causes BLE connection handshakes to time out consistently. There is no reliable workaround within the devcontainer on Windows.
+>
+> **Solution:** Test BLE device control on a Raspberry Pi running Home Assistant OS instead. See [README.md](../README.md) for deployment instructions.
+
+If you still want to investigate inside the container:
 1. Check container logs: `docker logs homeassistant-dev -f`
 2. Verify bluez is running: `systemctl status bluetooth`
 3. Restart bluetooth: `systemctl restart bluetooth`
