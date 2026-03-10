@@ -3,7 +3,8 @@ import asyncio
 import logging
 
 from bleak import BleakClient
-from bleak_retry_connector import establish_connection
+from bleak.backends.device import BLEDevice
+from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
@@ -62,11 +63,18 @@ class GiraBleApi:
                     _LOGGER.error("Unable to find Gira Switch at address %s", self._address)
                     return None
 
+                def _get_ble_device() -> BLEDevice | None:
+                    return bluetooth.async_ble_device_from_address(
+                        self._hass, self._address, connectable=True
+                    )
+
                 _LOGGER.debug("Attempting to connect to device %s", self._address)
                 self._client = await establish_connection(
-                    BleakClient,
+                    BleakClientWithServiceCache,
                     ble_device,
-                    ble_device.address
+                    ble_device.address,
+                    disconnected_callback=self._handle_disconnect,
+                    ble_device_callback=_get_ble_device,
                 )
                 _LOGGER.debug("Successfully connected to device %s", self._address)
                 return self._client
@@ -74,6 +82,10 @@ class GiraBleApi:
                 _LOGGER.error("Failed to establish connection to %s: %s", self._address, e, exc_info=True)
                 self._client = None
                 return None
+
+    def _handle_disconnect(self, client: BleakClient) -> None:
+        """Handle unexpected disconnect from the device."""
+        _LOGGER.debug("Device %s disconnected unexpectedly", self._address)
 
     async def _disconnect(self):
         """Safely disconnect the client."""
