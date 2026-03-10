@@ -34,8 +34,7 @@ async def async_setup_entry(
 class GiraBleCover(CoverEntity):
     _attr_device_class = CoverDeviceClass.BLIND
     _attr_name = "Gira Blind"
-    _attr_is_closed = True
-    _attr_current_cover_position = 0
+    _attr_should_poll = False
     _attr_supported_features = (
         CoverEntityFeature.OPEN
         | CoverEntityFeature.CLOSE
@@ -47,16 +46,37 @@ class GiraBleCover(CoverEntity):
         super().__init__()
         self._coordinator = coordinator
 
+    async def async_added_to_hass(self) -> None:
+        """Register callback so the entity updates when cover position notifications arrive."""
+        self._coordinator.register_callback(self.async_write_ha_state)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister callback when the entity is removed."""
+        self._coordinator.remove_callback(self.async_write_ha_state)
+
+    @property
+    def current_cover_position(self) -> int | None:
+        """Return the current cover position (0=closed, 100=open)."""
+        return self._coordinator.data.get("cover_position")
+
+    @property
+    def is_closed(self) -> bool | None:
+        """Return True when the cover is fully closed."""
+        pos = self.current_cover_position
+        if pos is None:
+            return None
+        return pos == 0
+
     async def async_open_cover(self, **kwargs):
         self._coordinator.open_cover()
-        self._attr_is_closed = False
-        self._attr_current_cover_position = 100
+        # Optimistic update until the device confirms via notification
+        self._coordinator.data["cover_position"] = 100
         self.async_write_ha_state()
-    
+
     async def async_close_cover(self, **kwargs):
         self._coordinator.close_cover()
-        self._attr_is_closed = True
-        self._attr_current_cover_position = 0
+        # Optimistic update until the device confirms via notification
+        self._coordinator.data["cover_position"] = 0
         self.async_write_ha_state()
 
     async def async_stop_cover(self, **kwargs):
@@ -67,6 +87,6 @@ class GiraBleCover(CoverEntity):
         pos = kwargs.get("position")
         gira_pos = int(100 - pos)
         self._coordinator.set_cover_position(gira_pos)
-        self._attr_current_cover_position = pos
-        self._attr_is_closed = pos == 0
+        # Optimistic update until the device confirms via notification
+        self._coordinator.data["cover_position"] = pos
         self.async_write_ha_state()
