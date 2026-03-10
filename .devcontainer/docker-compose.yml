@@ -6,12 +6,22 @@ services:
     container_name: homeassistant-dev
     privileged: true
     restart: unless-stopped
+    # network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     volumes:
       - /home/kaifr/hacs-gira-system-3000:/workspace
       - /home/kaifr/hacs-gira-system-3000/custom_components/gira_system_3000:/config/custom_components/gira_system_3000
       - ha-config:/config
+      - /run/dbus:/run/dbus
+      - /var/run/dbus:/var/run/dbus
+      - /sys:/sys
+      - /dev:/dev
+      - /run/systemd:/run/systemd
     environment:
       - TZ=UTC
+      - DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket
     ports:
       - "8123:8123"
     networks:

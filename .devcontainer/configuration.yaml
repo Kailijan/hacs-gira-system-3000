@@ -10,17 +10,20 @@ http:
   server_port: 8123
   ssl_certificate: null
   ssl_key: null
-
-frontend:
-logger:
-  default: debug
-  logs:
-    custom_components.gira_system_3000: debug
-
-http:
   cors_allowed_origins:
     - http://localhost:8123
     - http://127.0.0.1:8123
+
+frontend:
+
+logger:
+  default: warning
+  logs:
+    # Hier setzt du gezielt deine Komponente auf debug
+    custom_components.gira_system_3000: debug
+    # Falls du auch die Bluetooth-Kommunikation von HA sehen willst:
+    homeassistant.components.bluetooth: debug
+
 
 # Example configuration for the Gira System 3000 integration
 gira_system_3000:

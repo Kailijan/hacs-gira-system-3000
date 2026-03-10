@@ -1,11 +1,22 @@
 {
   "domain": "gira_system_3000",
   "name": "Gira System 3000",
+  "version": "0.1.0",
+  "integration_type": "device",
   "codeowners": ["@Kailijan"],
   "config_flow": true,
-  "documentation": "https://github.com/Kailijan/hacs-gira-system-3000",
-  "requirements": [],
-  "version": "0.1.0",
+  "documentation": "https://github.com/Kailijan/hacs-gira-system-3000/blob/main/README.md",
+  "requirements": ["bleak-retry-connector"],
   "issue_tracker": "https://github.com/Kailijan/hacs-gira-system-3000/issues",
-  "homeassistant": "2026.2.2"
+  "homeassistant": "2026.2.2",
+  "dependencies": [
+    "bluetooth",
+    "bluetooth_adapters"
+  ],
+  "bluetooth": [
+    {
+      "service_uuid": "9769f147-f77a-43ae-8c35-09f0c5245308"
+    }
+  ],
+  "iot_class": "local_push"
 }

@@ -4,7 +4,9 @@
   "service": "homeassistant",
   "workspaceFolder": "/workspace",
   "remoteUser": "root",
-  "postCreateCommand": "python -m pip install --upgrade pip setuptools wheel",
+  // "postCreateCommand": "python -m pip install --upgrade pip setuptools wheel",
+  "mounts": ["type=bind,source=/run/dbus,target=/run/dbus,readonly"],
+  "privileged": true,
   "customizations": {
     "vscode": {
       "extensions": [

@@ -67,6 +67,80 @@ docker volume inspect hacs-gira-system-3000_ha-config
 ### Install Additional Dependencies
 Edit `manifest.json` to add any required Python packages in the `requirements` field, then restart the container.
 
+## Bluetooth Configuration (WSL2)
+
+### Prerequisites
+WSL2 does not have native Bluetooth support. To use Bluetooth with Home Assistant, you need to set up USB device passthrough.
+
+### Setup Steps
+
+1. **Install USBIPD on Windows (PowerShell as Administrator):**
+   ```powershell
+   winget install usbipd
+   ```
+
+2. **List USB devices to find your Bluetooth adapter:**
+   ```powershell
+   usbipd list
+   ```
+   Look for a device named "Bluetooth" or similar. Note its Bus ID (e.g., `2-4`).
+
+3. **If the device is not shared make sure to bin it:**
+
+```powershell
+usbipd bind --busid <BUS_ID>
+```
+Replace `<BUS_ID>` with the actual Bus ID from step 2.
+
+3. **Attach the Bluetooth adapter to WSL2:**
+   ```powershell
+   usbipd attach --wsl --busid=<BUS_ID>
+   ```
+   Replace `<BUS_ID>` with the actual Bus ID from step 2.
+
+4. **Verify in WSL2:**
+   ```bash
+   lsusb | grep -i bluetooth
+   ```
+
+5. **Rebuild the Dev Container:**
+   - Press `Ctrl+Shift+P` in VS Code
+   - Select "Dev Containers: Rebuild Container"
+   - The container will install bluez and necessary Bluetooth tools
+
+6. **Verify Bluetooth in the Container:**
+   ```bash
+   # Inside the container
+   hciconfig
+   bluetoothctl list
+   ```
+
+### Auto-Attach on WSL2 Startup (Optional)
+
+Create a Windows Task Scheduler task to auto-attach the USB device:
+
+1. Open Task Scheduler
+2. Create Basic Task → Name: "Attach Bluetooth to WSL2"
+3. Trigger: "At startup"
+4. Action: "Start a program"
+   - Program: `C:\Windows\System32\wsl.exe`
+   - Arguments: `--mount-usb /dev/bus/usb/002/004` (adjust path based on your device)
+
+### Troubleshooting Bluetooth
+
+**Device not found in WSL2:**
+- Ensure the device is attached: `usbipd list --attached`
+- Reattach if needed: `usbipd detach --busid=<BUS_ID>` then reattach
+
+**Cannot connect to Bluetooth device:**
+1. Check container logs: `docker logs homeassistant-dev -f`
+2. Verify bluez is running: `systemctl status bluetooth`
+3. Restart bluetooth: `systemctl restart bluetooth`
+
+**Permission denied errors:**
+- The container already runs with `privileged: true`, which should handle permissions
+- If issues persist, check udev rules in the container
+
 ## Troubleshooting
 
 ### Component Not Loading
