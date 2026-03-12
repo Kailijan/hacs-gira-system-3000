@@ -37,7 +37,18 @@ class GiraBleApi:
         self._commandTask = asyncio.create_task(self._command_executor())
 
     def __del__(self):
-        self._commandTask.cancel()
+        if self._commandTask:
+            self._commandTask.cancel()
+
+    async def async_stop(self) -> None:
+        """Cancel the background command executor and close any open connection."""
+        if self._commandTask:
+            self._commandTask.cancel()
+            try:
+                await self._commandTask
+            except asyncio.CancelledError:
+                pass
+            self._commandTask = None
 
     async def _ensure_connected(self) -> BleakClient | None:
         """Ensure we have an active connection, reusing existing one if possible."""
@@ -155,7 +166,7 @@ class GiraBleApi:
         self._send_command(_command_stop())
 
     def send_command(self, percentage: int):
-        _LOGGER.info("Queuing command: %d%", percentage)
+        _LOGGER.info("Queuing command: %d%%", percentage)
         if percentage < 0 or percentage > 100:
             _LOGGER.warning("Invalid percentage: %d", percentage)
             return

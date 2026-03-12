@@ -42,17 +42,17 @@ class GiraBleCoordinator(DataUpdateCoordinator):
         self._api.send_command(position)
 
     def notification_handler(self, handle, data):
-        """Zentrale Verarbeitung der eingehenden Bluetooth-Bytes."""
+        """Central processing of incoming BLE bytes."""
         _LOGGER.info("Received update: %s", data.hex())
         if data[0] == 0xfb and data[4] == 0x0b:
-            # Parsing der Sensordaten
+            # Parse sensor data
             temp = data[8]
             lux_raw = (data[9] << 8) | data[10]
             lux = round(lux_raw * 3.68)
             
-            # Daten im Coordinator speichern
+            # Store data in coordinator
             self.data["temperature"] = temp
             self.data["brightness"] = lux
             
-            # Alle registrierten Entitäten (Sensoren) informieren
-            self.notify_listeners()
+            # Notify all registered entities (sensors)
+            self.async_update_listeners()
