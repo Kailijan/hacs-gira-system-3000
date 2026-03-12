@@ -46,6 +46,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry, PLATFORMS
     ):
         entry_data = hass.data[DOMAIN].pop(entry.entry_id)
-        del entry_data[DATA_KEY_API]
+        await entry_data[DATA_KEY_API].async_stop()
 
     return unload_ok
