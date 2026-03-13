@@ -69,13 +69,19 @@ class GiraBleApi:
                     )
 
                 _LOGGER.debug("Attempting to connect to device %s", self._address)
-                self._client = await establish_connection(
-                    BleakClientWithServiceCache,
+                self._client = BleakClient(
                     ble_device,
-                    ble_device.address,
-                    disconnected_callback=self._handle_disconnect,
-                    ble_device_callback=_get_ble_device,
+                    self._handle_disconnect
                 )
+                await self._client.connect()
+                
+                # self._client = await establish_connection(
+                #     BleakClientWithServiceCache,
+                #     ble_device,
+                #     ble_device.name,
+                #     disconnected_callback=self._handle_disconnect,
+                #     ble_device_callback=_get_ble_device,
+                # )
                 _LOGGER.debug("Successfully connected to device %s", self._address)
                 return self._client
             except Exception as e:

@@ -1,10 +1,17 @@
+import logging
+
 import voluptuous as vol
+from bleak import BleakClient
+from bleak_retry_connector import establish_connection
 from homeassistant import config_entries
+from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import async_discovered_service_info
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.helpers.selector import selector
 
-from .const import DOMAIN
+from .const import DOMAIN, SVC_UUID
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class GiraBleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -88,16 +95,68 @@ class GiraBleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not self._pending_address:
             return self.async_abort(reason="setup_incomplete")
 
+        errors = {}
+
         if user_input is not None:
-            # User confirmed coupling – create the config entry
-            return self.async_create_entry(
-                title=self._pending_name or "Gira Jalousie",
-                data={
-                    CONF_ADDRESS: self._pending_address,
-                    CONF_NAME: self._pending_name or "Gira Jalousie",
-                },
+            # Attempt actual BLE coupling: connect to the device and verify the GATT service
+            ble_device = bluetooth.async_ble_device_from_address(
+                self.hass, self._pending_address, connectable=True
             )
+            if ble_device is None:
+                _LOGGER.error(
+                    "Coupling failed: device %s not found in BLE scanner cache",
+                    self._pending_address,
+                )
+                errors["base"] = "coupling_failed"
+            else:
+                client: BleakClient | None = None
+                try:
+                    # client = await establish_connection(
+                    #     BleakClient,
+                    #     ble_device,
+                    #     ble_device.address,
+                    # )
+                    client = BleakClient(
+                        ble_device,
+                        pair=True
+                    )
+                    await client.connect()
+                    # Verify the expected GATT service is present
+                    service = client.services.get_service(SVC_UUID)
+                    if service is None:
+                        _LOGGER.error(
+                            "Coupling failed: GATT service %s not found on device %s",
+                            SVC_UUID,
+                            self._pending_address,
+                        )
+                        errors["base"] = "coupling_failed"
+                except Exception:
+                    _LOGGER.exception(
+                        "Coupling failed: could not connect to device %s",
+                        self._pending_address,
+                    )
+                    errors["base"] = "coupling_failed"
+                finally:
+                    if client is not None:
+                        try:
+                            await client.disconnect()
+                        except Exception:
+                            _LOGGER.debug(
+                                "Error disconnecting after coupling attempt for %s",
+                                self._pending_address,
+                            )
+
+            if not errors:
+                # Coupling succeeded – create the config entry
+                return self.async_create_entry(
+                    title=self._pending_name or "Gira Jalousie",
+                    data={
+                        CONF_ADDRESS: self._pending_address,
+                        CONF_NAME: self._pending_name or "Gira Jalousie",
+                    },
+                )
 
         return self.async_show_form(
             step_id="coupling",
+            errors=errors,
         )
