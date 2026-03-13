@@ -4,7 +4,7 @@ from homeassistant.components.bluetooth import async_discovered_service_info
 from homeassistant.const import CONF_ADDRESS, CONF_NAME
 from homeassistant.helpers.selector import selector
 
-from .const import DOMAIN
+from .const import DOMAIN, GIRA_MANUFACTURER_ID
 
 class GiraBleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Behandelt den Setup-Prozess für Gira BLE."""
@@ -55,12 +55,12 @@ class GiraBleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data=user_input
             )
 
-        # Liste der entdeckten BLE-Geräte für das Dropdown
+        # Filter discovered BLE devices to only show Gira devices by manufacturer ID
         discovery_info = async_discovered_service_info(self.hass)
         device_registry = {
             dev.address: f"{dev.name} ({dev.address})" 
             for dev in discovery_info 
-            if dev.name  # Zeige alle Geräte, lasse Benutzer wählen
+            if dev.name and GIRA_MANUFACTURER_ID in dev.manufacturer_data
         }
 
         # Formular für die manuelle Eingabe
