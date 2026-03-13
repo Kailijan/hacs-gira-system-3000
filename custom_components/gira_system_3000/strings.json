@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Gira System 3000",
+        "description": "Select the Gira Cover Switch from the list of discovered Bluetooth devices.",
+        "data": {
+          "address": "Bluetooth Address",
+          "name": "Device Name"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "Gira System 3000 found",
+        "description": "Do you want to set up **{name}**?"
+      },
+      "coupling": {
+        "title": "Enable Coupling Mode",
+        "description": "Before the Gira Cover Switch can be connected, it must be put into **coupling mode**.\n\nPress and hold the **Bluetooth button** on the device for **4 seconds** until the LED flashes.\n\nOnce the device is in coupling mode, click **Submit** to complete the setup."
+      }
+    },
+    "abort": {
+      "already_configured": "Device is already configured.",
+      "no_devices_found": "No Gira devices were found nearby.",
+      "setup_incomplete": "Setup could not be completed. Please restart the integration setup."
+    },
+    "error": {
+      "coupling_failed": "Could not connect to the device. Make sure the device is in coupling mode and try again."
+    }
+  }
+}
