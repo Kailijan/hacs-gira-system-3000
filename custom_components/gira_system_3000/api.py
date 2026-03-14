@@ -7,7 +7,7 @@ from bleak_retry_connector import BleakClientWithServiceCache, establish_connect
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
-from custom_components.gira_system_3000.const import CHR_UUID, SVC_UUID
+from custom_components.gira_system_3000.const import CHR_UUID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,19 +105,7 @@ class GiraBleApi:
                     continue
 
                 try:
-                    service = client.services.get_service(SVC_UUID)
-                    if service is None:
-                        _LOGGER.error("Unable to get GATT service")
-                        await self._disconnect()
-                        continue
-
-                    characteristic = service.get_characteristic(CHR_UUID)
-                    if characteristic is None:
-                        _LOGGER.error("Unable to get GATT characteristic")
-                        await self._disconnect()
-                        continue
-
-                    await client.write_gatt_char(characteristic, command, response=False)
+                    await client.write_gatt_char(CHR_UUID, command, response=True)
                     _LOGGER.info("Successfully sent command to device: %s", command.hex())
                 except Exception as e:
                     _LOGGER.error("Error writing to GATT characteristic: %s", e, exc_info=True)
