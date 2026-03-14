@@ -3,6 +3,7 @@ import asyncio
 import logging
 
 from bleak import BleakClient
+from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
@@ -59,8 +60,15 @@ class GiraBleApi:
                 return None
 
             _LOGGER.debug("Attempting to connect to device %s", self._address)
-            client = BleakClient(ble_device, self._handle_disconnect)
-            await client.connect()
+            client = await establish_connection(
+                BleakClientWithServiceCache,
+                ble_device,
+                ble_device.name or self._address,
+                disconnected_callback=self._handle_disconnect,
+                ble_device_callback=lambda: bluetooth.async_ble_device_from_address(
+                    self._hass, self._address, connectable=True
+                ),
+            )
             self._client = client
             _LOGGER.debug("Successfully connected to device %s", self._address)
             return self._client
@@ -109,7 +117,7 @@ class GiraBleApi:
                         await self._disconnect()
                         continue
 
-                    await client.write_gatt_char(characteristic, command, True)
+                    await client.write_gatt_char(characteristic, command, response=False)
                     _LOGGER.info("Successfully sent command to device: %s", command.hex())
                 except Exception as e:
                     _LOGGER.error("Error writing to GATT characteristic: %s", e, exc_info=True)
