@@ -3,12 +3,11 @@ import asyncio
 import logging
 
 from bleak import BleakClient
-from bleak.backends.device import BLEDevice
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
-from custom_components.gira_system_3000.const import CHR_UUID, SVC_UUID
+from custom_components.gira_system_3000.const import CHR_UUID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,8 +29,6 @@ class GiraBleApi:
         self._hass = hass
         # save the BLE MAC address for connection
         self._address = address
-        self._lock = asyncio.Lock()
-        self._connection_lock = asyncio.Lock()  # Prevent concurrent connection attempts
         self._commandQueue: asyncio.Queue[bytes] = asyncio.Queue()
         self._client: BleakClient | None = None
         self._commandTask = asyncio.create_task(self._command_executor())
@@ -41,51 +38,49 @@ class GiraBleApi:
 
     async def _ensure_connected(self) -> BleakClient | None:
         """Ensure we have an active connection, reusing existing one if possible."""
-        async with self._connection_lock:
-            # Check if existing connection is still alive
-            if self._client and self._client.is_connected:
-                _LOGGER.debug("Reusing existing connection to device %s", self._address)
-                return self._client
-            
-            # Disconnect stale connection if any
-            if self._client:
-                try:
-                    await self._client.disconnect()
-                except Exception as e:
-                    _LOGGER.debug("Error disconnecting stale connection: %s", e)
-                self._client = None
-                await asyncio.sleep(0.5)  # Give BlueZ time to release the connection
+        # Check if existing connection is still alive
+        if self._client and self._client.is_connected:
+            _LOGGER.debug("Reusing existing connection to device %s", self._address)
+            return self._client
 
-            # Establish new connection
+        # Disconnect stale connection if any
+        if self._client:
             try:
-                ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True)
-                if not ble_device:
-                    _LOGGER.error("Unable to find Gira Switch at address %s", self._address)
-                    return None
-
-                def _get_ble_device() -> BLEDevice | None:
-                    return bluetooth.async_ble_device_from_address(
-                        self._hass, self._address, connectable=True
-                    )
-
-                _LOGGER.debug("Attempting to connect to device %s", self._address)
-                self._client = await establish_connection(
-                    BleakClientWithServiceCache,
-                    ble_device,
-                    ble_device.address,
-                    disconnected_callback=self._handle_disconnect,
-                    ble_device_callback=_get_ble_device,
-                )
-                _LOGGER.debug("Successfully connected to device %s", self._address)
-                return self._client
+                await self._client.disconnect()
             except Exception as e:
-                _LOGGER.error("Failed to establish connection to %s: %s", self._address, e, exc_info=True)
-                self._client = None
+                _LOGGER.debug("Error disconnecting stale connection: %s", e)
+            self._client = None
+            await asyncio.sleep(0.5)  # Give BlueZ time to release the connection
+
+        # Establish new connection
+        try:
+            ble_device = bluetooth.async_ble_device_from_address(self._hass, self._address, connectable=True)
+            if not ble_device:
+                _LOGGER.error("Unable to find Gira Switch at address %s", self._address)
                 return None
+
+            _LOGGER.debug("Attempting to connect to device %s", self._address)
+            client = await establish_connection(
+                BleakClientWithServiceCache,
+                ble_device,
+                ble_device.name or self._address,
+                disconnected_callback=self._handle_disconnect,
+                ble_device_callback=lambda: bluetooth.async_ble_device_from_address(
+                    self._hass, self._address, connectable=True
+                ),
+            )
+            self._client = client
+            _LOGGER.debug("Successfully connected to device %s", self._address)
+            return self._client
+        except Exception as e:
+            _LOGGER.error("Failed to establish connection to %s: %s", self._address, e, exc_info=True)
+            self._client = None
+            return None
 
     def _handle_disconnect(self, client: BleakClient) -> None:
         """Handle unexpected disconnect from the device."""
         _LOGGER.debug("Device %s disconnected unexpectedly", self._address)
+        self._client = None
 
     async def _disconnect(self):
         """Safely disconnect the client."""
@@ -103,31 +98,18 @@ class GiraBleApi:
             try:
                 command = await self._commandQueue.get()
                 _LOGGER.warning("Processing command from queue: %s", command.hex())
-                
-                async with self._lock:
-                    client = await self._ensure_connected()
-                    if not client:
-                        _LOGGER.warning("Could not establish connection, command dropped")
-                        continue
 
-                    try:
-                        service = client.services.get_service(SVC_UUID)
-                        if service is None:
-                            _LOGGER.error("Unable to get GATT service")
-                            await self._disconnect()
-                            continue
-                        
-                        characteristic = service.get_characteristic(CHR_UUID)
-                        if characteristic is None:
-                            _LOGGER.error("Unable to get GATT characteristic")
-                            await self._disconnect()
-                            continue
-                        
-                        await client.write_gatt_char(characteristic, command, True)
-                        _LOGGER.info("Successfully sent command to device: %s", command.hex())
-                    except Exception as e:
-                        _LOGGER.error("Error writing to GATT characteristic: %s", e, exc_info=True)
-                        await self._disconnect()
+                client = await self._ensure_connected()
+                if not client:
+                    _LOGGER.warning("Could not establish connection, command dropped")
+                    continue
+
+                try:
+                    await client.write_gatt_char(CHR_UUID, command, response=True)
+                    _LOGGER.info("Successfully sent command to device: %s", command.hex())
+                except Exception as e:
+                    _LOGGER.error("Error writing to GATT characteristic: %s", e, exc_info=True)
+                    await self._disconnect()
                 
                 await asyncio.sleep(0.2)  # Small pause between commands
             except asyncio.CancelledError:
@@ -155,7 +137,7 @@ class GiraBleApi:
         self._send_command(_command_stop())
 
     def send_command(self, percentage: int):
-        _LOGGER.info("Queuing command: %d%", percentage)
+        _LOGGER.info("Queuing command: %d%%", percentage)
         if percentage < 0 or percentage > 100:
             _LOGGER.warning("Invalid percentage: %d", percentage)
             return
@@ -166,6 +148,5 @@ class GiraBleApi:
 
     async def notification_handler(self, handle, data):
         """Handle incoming Bluetooth notifications."""
-        # Hier könnte die Logik zum Verarbeiten von eingehenden Bluetooth-Daten implementiert werden.
         pass
 

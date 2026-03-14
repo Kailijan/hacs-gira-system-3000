@@ -18,6 +18,20 @@ HACS Integration for Gira System 3000 bluetooth cover for Home Assistant
 2. Restart Home Assistant.
 3. Add the integration via **Settings** → **Devices & Services**.
 
+## Setup & Coupling
+
+Before the Gira Cover Switch can communicate with Home Assistant, it must be **coupled** once.
+This coupling step is part of the integration setup wizard.
+
+### How to enable coupling mode
+
+Press and hold the **Bluetooth button** on the Gira Cover Switch for **4 seconds** until the LED flashes.
+The device is now in coupling mode and will accept a new connection from Home Assistant.
+
+![Coupling Mode](custom_components/gira_system_3000/coupling_mode.svg)
+
+Once the device shows the coupling LED signal, click **Submit** in the Home Assistant setup dialog to complete the pairing.
+
 ## Supported devices
 
 - Gira System 3000 blind/cover actuator (BLE)
@@ -41,3 +55,4 @@ A devcontainer is provided for local development. It lets you edit the code, run
 > USB-IP Bluetooth passthrough introduces latency that causes BLE connection timeouts when
 > connecting to the physical Gira Switch. Code editing, linting, and config flow testing are unaffected.
 > See [.devcontainer/README.md](.devcontainer/README.md) for details and a full setup guide.
+
